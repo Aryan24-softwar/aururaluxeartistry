@@ -2,35 +2,21 @@
  * ==============================================================================
  * AURORA LUXE ARTISTRY - MASTER APPLICATION CONTROLLER
  * Luxury Makeup Artist Booking Website
- * 
- * Features:
- * 1. EmailJS Dual-Email Integration (Dealer Notification + Client Auto-Reply)
- * 2. Real-Time Form Validation & Error State Management
- * 3. Portfolio Category Filtering & Image Lightbox Modal
- * 4. Interactive Before & After Comparison Slider
- * 5. Dynamic Service Pre-Selection & Smooth Scroll
- * 6. Sticky Luxury Navigation & Mobile Menu Drawer
- * 7. FAQ Accordion & Toast Notification System
- * 8. Booking Confirmation Modal with Copy Reference & Print
  * ==============================================================================
  */
 
 // ==============================================================================
-// 1. EMAILJS & BUSINESS CONFIGURATION
+// 1. BUSINESS & ARTIST CONFIGURATION
+// Edit your email address and business details here
 // ==============================================================================
-const EMAILJS_CONFIG = {
-  PUBLIC_KEY: '9O-4bkclJduO41UWE',            // Public EmailJS key
-  SERVICE_ID: 'service_luxbj6j',            // EmailJS service ID
-  DEALER_TEMPLATE_ID: 'YOUR_DEALER_TEMPLATE', // e.g., 'template_dealer_booking'
-  CLIENT_TEMPLATE_ID: 'YOUR_CLIENT_TEMPLATE'  // e.g., 'template_client_confirm'
-};
-
-// Business & Artist Public Details
 const BUSINESS_INFO = {
   businessName: 'Aurora Luxe Artistry',
   artistName: 'Elena Roche',
   phone: '+1 (555) 234-5678',
-  email: 'concierge@auroraluxeartistry.com',
+  
+  // ✉️ EDIT THIS EMAIL: Destination address where all booking requests will be sent
+  email: 'concierge@auroraluxeartistry.com', 
+  
   address: '742 Fifth Avenue, Suite 12B, New York, NY 10019',
   website: window.location.origin || 'https://auroraluxeartistry.com'
 };
@@ -40,7 +26,6 @@ const BUSINESS_INFO = {
 // ==============================================================================
 document.addEventListener('DOMContentLoaded', () => {
   initLoadingScreen();
-  initEmailJS();
   initHeaderScroll();
   initMobileNav();
   initActiveNavHighlight();
@@ -57,24 +42,6 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 /**
- * Initialize EmailJS SDK if valid public key is supplied
- */
-function initEmailJS() {
-  if (window.emailjs && EMAILJS_CONFIG.PUBLIC_KEY && EMAILJS_CONFIG.PUBLIC_KEY !== 'YOUR_PUBLIC_KEY') {
-    try {
-      emailjs.init({
-        publicKey: EMAILJS_CONFIG.PUBLIC_KEY,
-      });
-      console.log('✨ [EmailJS] Initialized successfully in live production mode.');
-    } catch (err) {
-      console.warn('⚠️ [EmailJS] Initialization error:', err);
-    }
-  } else {
-    console.log('ℹ️ [EmailJS] Running in smart preview/demo mode. Submissions will simulate dual email delivery or fall back to FormSubmit.');
-  }
-}
-
-/**
  * Set minimum date for event booking to today
  */
 function setMinEventDate() {
@@ -86,7 +53,7 @@ function setMinEventDate() {
 }
 
 // ==============================================================================
-// 3. APPOINTMENT BOOKING & EMAIL DISPATCH
+// 3. APPOINTMENT BOOKING & EMAIL DISPATCH (FormSubmit Direct Integration)
 // ==============================================================================
 function initBookingSystem() {
   const form = document.getElementById('bookingForm');
@@ -98,7 +65,7 @@ function initBookingSystem() {
 
   if (!form) return;
 
-  // Real-time input validation on blur / input
+  // Real-time field validation setup
   const inputs = form.querySelectorAll('input, select, textarea');
   inputs.forEach(input => {
     input.addEventListener('blur', () => validateField(input));
@@ -113,7 +80,7 @@ function initBookingSystem() {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // 1. Validate all required fields
+    // 1. Form Validation
     let isValid = true;
     const requiredInputs = form.querySelectorAll('[required]');
     requiredInputs.forEach(input => {
@@ -129,7 +96,7 @@ function initBookingSystem() {
       return;
     }
 
-    // 2. Extract and format form values
+    // 2. Extract Values
     const fullName = document.getElementById('fullName')?.value.trim() || '';
     const email = document.getElementById('emailAddress')?.value.trim() || '';
     const phone = document.getElementById('phoneNumber')?.value.trim() || '';
@@ -137,10 +104,9 @@ function initBookingSystem() {
     const eventDate = document.getElementById('eventDate')?.value || '';
     const eventTime = document.getElementById('eventTime')?.value || 'Morning (10:00 AM)';
     const partySize = document.getElementById('partySize')?.value.trim() || '1 Person (Bride Only)';
-    const venue = document.getElementById('eventLocation')?.value.trim() || 'Manhattan Studio / On-Location TBD';
+    const venue = document.getElementById('eventLocation')?.value.trim() || 'Studio / On-Location TBD';
     const message = document.getElementById('additionalNotes')?.value.trim() || 'No additional notes provided.';
 
-    // Generate unique luxury booking reference number (e.g., AL-2026-8942)
     const bookingRef = `AL-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
     const formattedDate = formatDate(eventDate);
     const submissionTime = new Date().toLocaleString('en-US', {
@@ -157,95 +123,45 @@ function initBookingSystem() {
         <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
         <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
       </svg>
-      <span>Processing Booking Request...</span>
+      <span>Sending Request...</span>
     `;
 
-    // 4. Prepare Email Payloads for EmailJS
-    const dealerTemplateParams = {
-      client_name: fullName,
-      client_email: email,
-      client_phone: phone,
-      service_name: service,
-      booking_date: formattedDate,
-      booking_time: eventTime,
-      party_size: partySize,
-      venue_location: venue,
-      client_message: message,
-      booking_ref: bookingRef,
-      submission_time: submissionTime
-    };
-
-    const clientTemplateParams = {
-      to_name: fullName,
-      to_email: email,
-      service_name: service,
-      booking_date: formattedDate,
-      booking_time: eventTime,
-      venue_location: venue,
-      party_size: partySize,
-      booking_ref: bookingRef,
-      business_name: BUSINESS_INFO.businessName,
-      artist_name: BUSINESS_INFO.artistName,
-      artist_phone: BUSINESS_INFO.phone,
-      artist_email: BUSINESS_INFO.email,
-      studio_address: BUSINESS_INFO.address
-    };
-
     try {
-      const isFullEmailJS = window.emailjs &&
-                            EMAILJS_CONFIG.PUBLIC_KEY !== 'YOUR_PUBLIC_KEY' &&
-                            EMAILJS_CONFIG.SERVICE_ID !== 'YOUR_SERVICE_ID' &&
-                            EMAILJS_CONFIG.DEALER_TEMPLATE_ID !== 'YOUR_DEALER_TEMPLATE' &&
-                            EMAILJS_CONFIG.CLIENT_TEMPLATE_ID !== 'YOUR_CLIENT_TEMPLATE';
+      // 4. FormSubmit Payload
+      const targetArtistEmail = BUSINESS_INFO.email;
+      const formSubmitPayload = {
+        _subject: `✨ New Booking Request: ${fullName} – ${service} [${bookingRef}]`,
+        _replyto: email,
+        _template: 'table',
+        _captcha: 'false',
+        _autoresponse: `Dear ${fullName},\n\nThank you for reaching out to ${BUSINESS_INFO.businessName}!\n\n── Booking Summary ──\nReference: ${bookingRef}\nService: ${service}\nDate: ${formattedDate}\nTime: ${eventTime}\nVenue: ${venue}\nParty Size: ${partySize}\n\nOur concierge team will review availability and contact you within 24 hours.\n\nWarm regards,\n${BUSINESS_INFO.artistName}\n${BUSINESS_INFO.businessName}\nPhone: ${BUSINESS_INFO.phone}\nEmail: ${BUSINESS_INFO.email}`,
+        "Booking Reference": bookingRef,
+        "Client Name": fullName,
+        "Email Address": email,
+        "Phone Number": phone,
+        "Makeup Service": service,
+        "Preferred Date": formattedDate,
+        "Preferred Time": eventTime,
+        "Party Size": partySize,
+        "Venue Location": venue,
+        "Additional Message": message,
+        "Submission Time": submissionTime
+      };
 
-      if (isFullEmailJS) {
-        // Path A: EmailJS Dual-Email
-        console.log('📧 [Dispatch] Using EmailJS dual-email path...');
-        const [dealerRes, clientRes] = await Promise.all([
-          emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.DEALER_TEMPLATE_ID, dealerTemplateParams),
-          emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.CLIENT_TEMPLATE_ID, clientTemplateParams)
-        ]);
-        console.log('✅ [EmailJS] Artist Notification Sent:', dealerRes.status);
-        console.log('✅ [EmailJS] Client Confirmation Sent:', clientRes.status);
-      } else {
-        // Path B: FormSubmit AJAX Fallback
-        const targetArtistEmail = BUSINESS_INFO.email;
-        console.log('📧 [Dispatch] Using FormSubmit path → ' + targetArtistEmail);
+      const response = await fetch(`https://formsubmit.co/ajax/${targetArtistEmail}`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Accept': 'application/json'
+        },
+        body: JSON.stringify(formSubmitPayload)
+      });
 
-        const formSubmitPayload = {
-          _subject: `✨ New Booking Request: ${fullName} – ${service} [${bookingRef}]`,
-          _replyto: email,
-          _template: 'table',
-          _captcha: 'false',
-          _autoresponse: `Dear ${fullName},\n\nThank you for your appointment request with ${BUSINESS_INFO.businessName}!\n\n── Booking Summary ──\nService: ${service}\nDate: ${formattedDate}\nTime: ${eventTime}\nVenue: ${venue}\nParty Size: ${partySize}\nReference: ${bookingRef}\n\nOur concierge team will review availability and contact you within 24 hours.\n\nFor immediate assistance, please call ${BUSINESS_INFO.phone} or email ${BUSINESS_INFO.email}.\n\nWarm regards,\n${BUSINESS_INFO.artistName}\n${BUSINESS_INFO.businessName}`,
-          "Booking Reference": bookingRef,
-          "Client Name": fullName,
-          "Email Address": email,
-          "Phone Number": phone,
-          "Makeup Service": service,
-          "Preferred Date": formattedDate,
-          "Preferred Time": eventTime,
-          "Party Size": partySize,
-          "Venue Location": venue,
-          "Additional Message": message,
-          "Submission Time": submissionTime
-        };
+      if (!response.ok) throw new Error(`Server returned response status ${response.status}`);
+      const result = await response.json();
+      console.log('✅ [FormSubmit] Email sent successfully:', result);
 
-        const response = await fetch(`https://formsubmit.co/ajax/${targetArtistEmail}`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Accept': 'application/json'
-          },
-          body: JSON.stringify(formSubmitPayload)
-        });
-
-        if (!response.ok) throw new Error(`FormSubmit returned ${response.status}`);
-        const result = await response.json();
-        console.log('✅ [FormSubmit] Email dispatched successfully:', result);
-      }
-
-      // 5. Populate and show Booking Confirmation Modal
+      // 5. Populate & Display Confirmation Modal
       populateConfirmationModal({
         bookingRef,
         fullName,
@@ -259,21 +175,21 @@ function initBookingSystem() {
       });
 
       if (modalBackdrop) modalBackdrop.classList.add('active');
-      showToast('Appointment request sent! Check your inbox for confirmation.', 'success');
+      showToast('Appointment request sent! Check your email for confirmation.', 'success');
 
       form.reset();
       inputs.forEach(input => input.classList.remove('is-valid', 'is-invalid'));
 
     } catch (error) {
-      console.error('❌ [Email Transmission Error]:', error);
-      showToast('Email transmission failed. Please contact us directly at ' + BUSINESS_INFO.phone, 'error');
+      console.error('❌ [Form Email Error]:', error);
+      showToast('Form submission failed. Please contact us directly at ' + BUSINESS_INFO.phone, 'error');
     } finally {
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalBtnHTML;
     }
   });
 
-  // Modal Close Handlers
+  // Modal Action Handlers
   const closeModal = () => {
     if (modalBackdrop) modalBackdrop.classList.remove('active');
   };
@@ -286,7 +202,6 @@ function initBookingSystem() {
     });
   }
 
-  // Copy Booking Reference Button
   if (copyRefBtn) {
     copyRefBtn.addEventListener('click', () => {
       const refCodeEl = document.getElementById('modalRefCode');
@@ -294,13 +209,12 @@ function initBookingSystem() {
         navigator.clipboard.writeText(refCodeEl.innerText).then(() => {
           showToast(`Reference ${refCodeEl.innerText} copied to clipboard!`, 'success');
         }).catch(() => {
-          showToast('Could not copy automatically. Code: ' + refCodeEl.innerText, 'info');
+          showToast('Code: ' + refCodeEl.innerText, 'info');
         });
       }
     });
   }
 
-  // Print Booking Receipt
   if (printModalBtn) {
     printModalBtn.addEventListener('click', () => {
       window.print();
@@ -309,7 +223,7 @@ function initBookingSystem() {
 }
 
 /**
- * Field-level validator
+ * Validate Individual Fields
  */
 function validateField(input) {
   const value = input.value.trim();
@@ -342,7 +256,7 @@ function validateField(input) {
 }
 
 /**
- * Populate Confirmation Modal Data
+ * Update Confirmation Modal Content
  */
 function populateConfirmationModal(data) {
   const setElText = (id, text) => {
@@ -359,9 +273,6 @@ function populateConfirmationModal(data) {
   setElText('modalContact', `${data.email} • ${data.phone}`);
 }
 
-/**
- * Helper to format date strings gracefully
- */
 function formatDate(dateStr) {
   if (!dateStr) return '';
   const [year, month, day] = dateStr.split('-');
@@ -473,7 +384,7 @@ function initLightbox() {
 
     if (imgEl && lightboxImg) {
       lightboxImg.src = imgEl.src;
-      lightboxCaption.innerText = titleEl ? titleEl.innerText : 'Aurora Luxe Artistry Signature Look';
+      lightboxCaption.innerText = titleEl ? titleEl.innerText : 'Aurora Luxe Artistry Look';
       lightbox.classList.add('active');
       document.body.style.overflow = 'hidden';
     }
@@ -567,7 +478,7 @@ function initComparisonSlider() {
 }
 
 // ==============================================================================
-// 8. STICKY HEADER & MOBILE DRAWER NAVIGATION
+// 8. STICKY HEADER & MOBILE NAVIGATION
 // ==============================================================================
 function initHeaderScroll() {
   const header = document.querySelector('.header');
@@ -737,7 +648,7 @@ function initScrollReveal() {
 }
 
 // ==============================================================================
-// 14. ACTIVE NAV LINK HIGHLIGHT ON SCROLL
+// 14. ACTIVE NAV LINK HIGHLIGHT
 // ==============================================================================
 function initActiveNavHighlight() {
   const sections = document.querySelectorAll('section[id]');
