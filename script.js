@@ -1,20 +1,19 @@
 /**
  * ==============================================================================
  * AURORA LUXE ARTISTRY - MASTER APPLICATION CONTROLLER
- * Luxury Makeup Artist Booking Website
+ * FormSubmit Direct Integration Version
  * ==============================================================================
  */
 
 // ==============================================================================
-// 1. BUSINESS & ARTIST CONFIGURATION
-// Edit your email address and business details here
+// 1. BUSINESS CONFIGURATION
 // ==============================================================================
 const BUSINESS_INFO = {
   businessName: 'Aurora Luxe Artistry',
   artistName: 'Elena Roche',
   phone: '+1 (555) 234-5678',
   
-  // ✉️ EDIT THIS EMAIL: Destination address where all booking requests will be sent
+  // ✉️ Destination address where booking requests are received
   email: 'concierge@auroraluxeartistry.com', 
   
   address: '742 Fifth Avenue, Suite 12B, New York, NY 10019',
@@ -53,7 +52,7 @@ function setMinEventDate() {
 }
 
 // ==============================================================================
-// 3. APPOINTMENT BOOKING & EMAIL DISPATCH (FormSubmit Direct Integration)
+// 3. APPOINTMENT BOOKING & FORMSUBMIT AJAX DISPATCH
 // ==============================================================================
 function initBookingSystem() {
   const form = document.getElementById('bookingForm');
@@ -80,7 +79,7 @@ function initBookingSystem() {
   form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // 1. Form Validation
+    // 1. Validate Required Fields
     let isValid = true;
     const requiredInputs = form.querySelectorAll('[required]');
     requiredInputs.forEach(input => {
@@ -123,18 +122,18 @@ function initBookingSystem() {
         <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
         <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
       </svg>
-      <span>Sending Request...</span>
+      <span>Sending Booking Request...</span>
     `;
 
     try {
-      // 4. FormSubmit Payload
+      // 4. Construct Payload for FormSubmit API
       const targetArtistEmail = BUSINESS_INFO.email;
       const formSubmitPayload = {
         _subject: `✨ New Booking Request: ${fullName} – ${service} [${bookingRef}]`,
         _replyto: email,
         _template: 'table',
         _captcha: 'false',
-        _autoresponse: `Dear ${fullName},\n\nThank you for reaching out to ${BUSINESS_INFO.businessName}!\n\n── Booking Summary ──\nReference: ${bookingRef}\nService: ${service}\nDate: ${formattedDate}\nTime: ${eventTime}\nVenue: ${venue}\nParty Size: ${partySize}\n\nOur concierge team will review availability and contact you within 24 hours.\n\nWarm regards,\n${BUSINESS_INFO.artistName}\n${BUSINESS_INFO.businessName}\nPhone: ${BUSINESS_INFO.phone}\nEmail: ${BUSINESS_INFO.email}`,
+        _autoresponse: `Dear ${fullName},\n\nThank you for choosing ${BUSINESS_INFO.businessName}!\n\n── Booking Request Summary ──\nReference Code: ${bookingRef}\nService: ${service}\nPreferred Date: ${formattedDate}\nPreferred Time: ${eventTime}\nVenue: ${venue}\nParty Size: ${partySize}\n\nOur concierge team will review availability and confirm your booking within 24 hours.\n\nWarm regards,\n${BUSINESS_INFO.artistName}\n${BUSINESS_INFO.businessName}\nPhone: ${BUSINESS_INFO.phone}\nEmail: ${BUSINESS_INFO.email}`,
         "Booking Reference": bookingRef,
         "Client Name": fullName,
         "Email Address": email,
@@ -148,6 +147,7 @@ function initBookingSystem() {
         "Submission Time": submissionTime
       };
 
+      // AJAX POST to FormSubmit Endpoint
       const response = await fetch(`https://formsubmit.co/ajax/${targetArtistEmail}`, {
         method: 'POST',
         headers: {
@@ -157,9 +157,9 @@ function initBookingSystem() {
         body: JSON.stringify(formSubmitPayload)
       });
 
-      if (!response.ok) throw new Error(`Server returned response status ${response.status}`);
+      if (!response.ok) throw new Error(`Server returned response code ${response.status}`);
       const result = await response.json();
-      console.log('✅ [FormSubmit] Email sent successfully:', result);
+      console.log('✅ [FormSubmit] Email dispatched successfully:', result);
 
       // 5. Populate & Display Confirmation Modal
       populateConfirmationModal({
@@ -175,21 +175,21 @@ function initBookingSystem() {
       });
 
       if (modalBackdrop) modalBackdrop.classList.add('active');
-      showToast('Appointment request sent! Check your email for confirmation.', 'success');
+      showToast('Appointment request sent! Check your inbox for confirmation.', 'success');
 
       form.reset();
       inputs.forEach(input => input.classList.remove('is-valid', 'is-invalid'));
 
     } catch (error) {
-      console.error('❌ [Form Email Error]:', error);
-      showToast('Form submission failed. Please contact us directly at ' + BUSINESS_INFO.phone, 'error');
+      console.error('❌ [FormSubmit Error]:', error);
+      showToast('Form transmission failed. Please contact us directly at ' + BUSINESS_INFO.phone, 'error');
     } finally {
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalBtnHTML;
     }
   });
 
-  // Modal Action Handlers
+  // Modal Controls
   const closeModal = () => {
     if (modalBackdrop) modalBackdrop.classList.remove('active');
   };
