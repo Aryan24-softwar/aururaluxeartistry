@@ -16,28 +16,16 @@
  */
 
 // ==============================================================================
-// 1. EMAILJS CONFIGURATION (CLIENT-SIDE SAFE)
-// Replace placeholder values with your actual EmailJS credentials from emailjs.com
+// 1. EMAILJS & BUSINESS CONFIGURATION
 // ==============================================================================
 const EMAILJS_CONFIG = {
-  PUBLIC_KEY: '9O-4bkclJduO41UWE',             // e.g., 'user_ab12cd34ef56gh78'
-  SERVICE_ID: 'service_luxbj6j',              // e.g., 'service_luxury_mua'
-  DEALER_TEMPLATE_ID: ' 
-       client_name: fullName,
-      client_email: email,
-      client_phone: phone,
-      service_name: service,
-      booking_date: formattedDate,
-      booking_time: eventTime,
-      party_size: partySize,
-      venue_location: venue,
-      client_message: message,
-      booking_ref: bookingRef,
-      submission_time: submissionTime',  // e.g., 'template_dealer_booking'
-  CLIENT_TEMPLATE_ID: 'YOUR_CLIENT_TEMPLATE'   // e.g., 'template_client_confirm'
+  PUBLIC_KEY: '9O-4bkclJduO41UWE',            // Public EmailJS key
+  SERVICE_ID: 'service_luxbj6j',            // EmailJS service ID
+  DEALER_TEMPLATE_ID: 'YOUR_DEALER_TEMPLATE', // e.g., 'template_dealer_booking'
+  CLIENT_TEMPLATE_ID: 'YOUR_CLIENT_TEMPLATE'  // e.g., 'template_client_confirm'
 };
 
-// Business & Artist Public Details (Injected into client emails & modals)
+// Business & Artist Public Details
 const BUSINESS_INFO = {
   businessName: 'Aurora Luxe Artistry',
   artistName: 'Elena Roche',
@@ -82,7 +70,7 @@ function initEmailJS() {
       console.warn('⚠️ [EmailJS] Initialization error:', err);
     }
   } else {
-    console.log('ℹ️ [EmailJS] Running in smart preview/demo mode. Submissions will simulate realistic dual email delivery.');
+    console.log('ℹ️ [EmailJS] Running in smart preview/demo mode. Submissions will simulate dual email delivery or fall back to FormSubmit.');
   }
 }
 
@@ -98,7 +86,7 @@ function setMinEventDate() {
 }
 
 // ==============================================================================
-// 3. APPOINTMENT BOOKING & EMAILJS DISPATCH
+// 3. APPOINTMENT BOOKING & EMAIL DISPATCH
 // ==============================================================================
 function initBookingSystem() {
   const form = document.getElementById('bookingForm');
@@ -142,15 +130,15 @@ function initBookingSystem() {
     }
 
     // 2. Extract and format form values
-    const fullName = document.getElementById('fullName').value.trim();
-    const email = document.getElementById('emailAddress').value.trim();
-    const phone = document.getElementById('phoneNumber').value.trim();
-    const service = document.getElementById('preferredService').value;
-    const eventDate = document.getElementById('eventDate').value;
-    const eventTime = document.getElementById('eventTime') ? document.getElementById('eventTime').value : 'Morning (10:00 AM)';
-    const partySize = document.getElementById('partySize').value.trim() || '1 Person (Bride Only)';
-    const venue = document.getElementById('eventLocation').value.trim() || 'Manhattan Studio / On-Location TBD';
-    const message = document.getElementById('additionalNotes').value.trim() || 'No additional notes provided.';
+    const fullName = document.getElementById('fullName')?.value.trim() || '';
+    const email = document.getElementById('emailAddress')?.value.trim() || '';
+    const phone = document.getElementById('phoneNumber')?.value.trim() || '';
+    const service = document.getElementById('preferredService')?.value || 'General Inquiry';
+    const eventDate = document.getElementById('eventDate')?.value || '';
+    const eventTime = document.getElementById('eventTime')?.value || 'Morning (10:00 AM)';
+    const partySize = document.getElementById('partySize')?.value.trim() || '1 Person (Bride Only)';
+    const venue = document.getElementById('eventLocation')?.value.trim() || 'Manhattan Studio / On-Location TBD';
+    const message = document.getElementById('additionalNotes')?.value.trim() || 'No additional notes provided.';
 
     // Generate unique luxury booking reference number (e.g., AL-2026-8942)
     const bookingRef = `AL-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
@@ -173,7 +161,6 @@ function initBookingSystem() {
     `;
 
     // 4. Prepare Email Payloads for EmailJS
-    // Payload for Dealer / Makeup Artist Notification
     const dealerTemplateParams = {
       client_name: fullName,
       client_email: email,
@@ -188,7 +175,6 @@ function initBookingSystem() {
       submission_time: submissionTime
     };
 
-    // Payload for Client Confirmation Auto-Reply
     const clientTemplateParams = {
       to_name: fullName,
       to_email: email,
@@ -206,9 +192,6 @@ function initBookingSystem() {
     };
 
     try {
-      // Smart Cascading Email Dispatch
-      // Path A: Full EmailJS (requires all 4 credentials to be real)
-      // Path B: FormSubmit AJAX fallback (always works with just target email)
       const isFullEmailJS = window.emailjs &&
                             EMAILJS_CONFIG.PUBLIC_KEY !== 'YOUR_PUBLIC_KEY' &&
                             EMAILJS_CONFIG.SERVICE_ID !== 'YOUR_SERVICE_ID' &&
@@ -216,7 +199,7 @@ function initBookingSystem() {
                             EMAILJS_CONFIG.CLIENT_TEMPLATE_ID !== 'YOUR_CLIENT_TEMPLATE';
 
       if (isFullEmailJS) {
-        // ── Path A: EmailJS Dual-Email (Artist Notification + Client Confirmation) ──
+        // Path A: EmailJS Dual-Email
         console.log('📧 [Dispatch] Using EmailJS dual-email path...');
         const [dealerRes, clientRes] = await Promise.all([
           emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.DEALER_TEMPLATE_ID, dealerTemplateParams),
@@ -225,8 +208,8 @@ function initBookingSystem() {
         console.log('✅ [EmailJS] Artist Notification Sent:', dealerRes.status);
         console.log('✅ [EmailJS] Client Confirmation Sent:', clientRes.status);
       } else {
-        // ── Path B: FormSubmit AJAX with Auto-Response to Client ──
-        const targetArtistEmail = 'aryan240706@gmail.com';
+        // Path B: FormSubmit AJAX Fallback
+        const targetArtistEmail = BUSINESS_INFO.email;
         console.log('📧 [Dispatch] Using FormSubmit path → ' + targetArtistEmail);
 
         const formSubmitPayload = {
@@ -240,7 +223,6 @@ function initBookingSystem() {
           "Email Address": email,
           "Phone Number": phone,
           "Makeup Service": service,
-          "Event Type": document.getElementById('eventType') ? document.getElementById('eventType').value : 'Not specified',
           "Preferred Date": formattedDate,
           "Preferred Time": eventTime,
           "Party Size": partySize,
@@ -276,17 +258,15 @@ function initBookingSystem() {
         venue
       });
 
-      // Show modal & toast
       if (modalBackdrop) modalBackdrop.classList.add('active');
       showToast('Appointment request sent! Check your inbox for confirmation.', 'success');
 
-      // Reset form
       form.reset();
       inputs.forEach(input => input.classList.remove('is-valid', 'is-invalid'));
 
     } catch (error) {
       console.error('❌ [Email Transmission Error]:', error);
-      showToast('Email transmission failed. Please contact us directly at +1 (555) 234-5678.', 'error');
+      showToast('Email transmission failed. Please contact us directly at ' + BUSINESS_INFO.phone, 'error');
     } finally {
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalBtnHTML;
@@ -339,11 +319,9 @@ function validateField(input) {
   if (isRequired && !value) {
     isValid = false;
   } else if (input.type === 'email' && value) {
-    // Standard RFC5322 regex validation
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     isValid = emailRegex.test(value);
   } else if (input.type === 'tel' && value) {
-    // At least 7 digits/characters
     isValid = value.replace(/\D/g, '').length >= 7;
   } else if (input.type === 'date' && value) {
     const selectedDate = new Date(value);
@@ -397,7 +375,7 @@ function formatDate(dateStr) {
 }
 
 // ==============================================================================
-// 4. SERVICE PRE-SELECTION SYNC (CTA Buttons -> Booking Form)
+// 4. SERVICE PRE-SELECTION SYNC
 // ==============================================================================
 function initServiceSelectTriggers() {
   const bookButtons = document.querySelectorAll('[data-book-service]');
@@ -410,7 +388,6 @@ function initServiceSelectTriggers() {
       const targetService = btn.getAttribute('data-book-service');
 
       if (serviceDropdown && targetService) {
-        // Match or find closest option
         for (let i = 0; i < serviceDropdown.options.length; i++) {
           if (serviceDropdown.options[i].value.toLowerCase().includes(targetService.toLowerCase())) {
             serviceDropdown.selectedIndex = i;
@@ -421,8 +398,6 @@ function initServiceSelectTriggers() {
 
       if (bookingSection) {
         bookingSection.scrollIntoView({ behavior: 'smooth' });
-        
-        // Highlight dropdown field with gold glow
         if (serviceDropdown) {
           setTimeout(() => {
             serviceDropdown.focus();
@@ -447,7 +422,6 @@ function initGalleryFilters() {
 
   tabs.forEach(tab => {
     tab.addEventListener('click', () => {
-      // Toggle active tab
       tabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
 
@@ -483,10 +457,8 @@ function initLightbox() {
 
   if (!lightbox) return;
 
-  // Click on gallery item to open lightbox
-  galleryItems.forEach((item, index) => {
+  galleryItems.forEach(item => {
     item.addEventListener('click', () => {
-      // Gather visible items
       visibleGalleryImages = Array.from(document.querySelectorAll('.gallery-item:not(.hidden)'));
       currentLightboxIndex = visibleGalleryImages.indexOf(item);
       openLightboxAt(currentLightboxIndex);
@@ -533,7 +505,6 @@ function initLightbox() {
     });
   }
 
-  // Keyboard navigation (Esc, Left, Right)
   document.addEventListener('keydown', (e) => {
     if (!lightbox.classList.contains('active')) return;
     if (e.key === 'Escape') closeLightbox();
@@ -566,7 +537,6 @@ function initComparisonSlider() {
     handle.style.left = `${percentage}%`;
   };
 
-  // Mouse events
   container.addEventListener('mousedown', (e) => {
     isSliding = true;
     updateSlider(e.clientX);
@@ -581,7 +551,6 @@ function initComparisonSlider() {
     isSliding = false;
   });
 
-  // Touch events (Mobile support)
   container.addEventListener('touchstart', (e) => {
     isSliding = true;
     updateSlider(e.touches[0].clientX);
@@ -651,12 +620,10 @@ function initFaqAccordion() {
     questionBtn.addEventListener('click', () => {
       const isActive = item.classList.contains('active');
 
-      // Close all other items
       faqItems.forEach(otherItem => {
         otherItem.classList.remove('active');
       });
 
-      // Toggle current
       if (!isActive) {
         item.classList.add('active');
       }
@@ -720,7 +687,6 @@ function showToast(message, type = 'info') {
   }, 4500);
 }
 
-// Make showToast accessible globally
 window.showToast = showToast;
 
 // ==============================================================================
@@ -730,7 +696,6 @@ function initLoadingScreen() {
   const loader = document.getElementById('loadingScreen');
   if (!loader) return;
 
-  // Fade out after page is ready
   setTimeout(() => {
     loader.style.opacity = '0';
     loader.style.pointerEvents = 'none';
@@ -741,9 +706,11 @@ function initLoadingScreen() {
 }
 
 // ==============================================================================
-// 13. SCROLL REVEAL ANIMATIONS (IntersectionObserver)
+// 13. SCROLL REVEAL ANIMATIONS
 // ==============================================================================
 function initScrollReveal() {
+  if (!('IntersectionObserver' in window)) return;
+
   const observerOptions = {
     threshold: 0.08,
     rootMargin: '0px 0px -30px 0px'
@@ -809,7 +776,6 @@ function initCookieConsent() {
 
   if (!banner || !acceptBtn) return;
 
-  // Show banner after a short delay
   setTimeout(() => {
     banner.classList.add('visible');
   }, 1500);
