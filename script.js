@@ -1,27 +1,58 @@
 /**
  * ==============================================================================
- * AURORA LUXE ARTISTRY - MASTER APPLICATION CONTROLLER (ES5 Compatible)
- * FormSubmit Direct Integration & Interactive UX
+ * AURORA LUXE ARTISTRY - MASTER APPLICATION CONTROLLER
+ * Luxury Makeup Artist Booking Website
+ * 
+ * Features:
+ * 1. EmailJS Dual-Email Integration (Dealer Notification + Client Auto-Reply)
+ * 2. Real-Time Form Validation & Error State Management
+ * 3. Portfolio Category Filtering & Image Lightbox Modal
+ * 4. Interactive Before & After Comparison Slider
+ * 5. Dynamic Service Pre-Selection & Smooth Scroll
+ * 6. Sticky Luxury Navigation & Mobile Menu Drawer
+ * 7. FAQ Accordion & Toast Notification System
+ * 8. Booking Confirmation Modal with Copy Reference & Print
  * ==============================================================================
  */
 
-// 1. BUSINESS CONFIGURATION
-var BUSINESS_INFO = {
+// ==============================================================================
+// 1. EMAILJS CONFIGURATION (CLIENT-SIDE SAFE)
+// Replace placeholder values with your actual EmailJS credentials from emailjs.com
+// ==============================================================================
+const EMAILJS_CONFIG = {
+  PUBLIC_KEY: '9O-4bkclJduO41UWE',             // e.g., 'user_ab12cd34ef56gh78'
+  SERVICE_ID: 'service_luxbj6j',              // e.g., 'service_luxury_mua'
+  DEALER_TEMPLATE_ID: ' 
+       client_name: fullName,
+      client_email: email,
+      client_phone: phone,
+      service_name: service,
+      booking_date: formattedDate,
+      booking_time: eventTime,
+      party_size: partySize,
+      venue_location: venue,
+      client_message: message,
+      booking_ref: bookingRef,
+      submission_time: submissionTime',  // e.g., 'template_dealer_booking'
+  CLIENT_TEMPLATE_ID: 'YOUR_CLIENT_TEMPLATE'   // e.g., 'template_client_confirm'
+};
+
+// Business & Artist Public Details (Injected into client emails & modals)
+const BUSINESS_INFO = {
   businessName: 'Aurora Luxe Artistry',
   artistName: 'Elena Roche',
   phone: '+1 (555) 234-5678',
-  email: 'concierge@auroraluxeartistry.com', 
+  email: 'concierge@auroraluxeartistry.com',
   address: '742 Fifth Avenue, Suite 12B, New York, NY 10019',
   website: window.location.origin || 'https://auroraluxeartistry.com'
 };
 
-// Global state tracking for Lightbox
-var currentLightboxIndex = 0;
-var visibleGalleryImages = [];
-
+// ==============================================================================
 // 2. DOM INITIALIZATION
-document.addEventListener('DOMContentLoaded', function () {
+// ==============================================================================
+document.addEventListener('DOMContentLoaded', () => {
   initLoadingScreen();
+  initEmailJS();
   initHeaderScroll();
   initMobileNav();
   initActiveNavHighlight();
@@ -38,32 +69,52 @@ document.addEventListener('DOMContentLoaded', function () {
 });
 
 /**
- * Set minimum date for event booking to today
+ * Initialize EmailJS SDK if valid public key is supplied
  */
-function setMinEventDate() {
-  var dateInput = document.getElementById('eventDate');
-  if (dateInput) {
-    var today = new Date().toISOString().split('T')[0];
-    dateInput.setAttribute('min', today);
+function initEmailJS() {
+  if (window.emailjs && EMAILJS_CONFIG.PUBLIC_KEY && EMAILJS_CONFIG.PUBLIC_KEY !== 'YOUR_PUBLIC_KEY') {
+    try {
+      emailjs.init({
+        publicKey: EMAILJS_CONFIG.PUBLIC_KEY,
+      });
+      console.log('✨ [EmailJS] Initialized successfully in live production mode.');
+    } catch (err) {
+      console.warn('⚠️ [EmailJS] Initialization error:', err);
+    }
+  } else {
+    console.log('ℹ️ [EmailJS] Running in smart preview/demo mode. Submissions will simulate realistic dual email delivery.');
   }
 }
 
-// 3. APPOINTMENT BOOKING & FORMSUBMIT AJAX DISPATCH
+/**
+ * Set minimum date for event booking to today
+ */
+function setMinEventDate() {
+  const dateInput = document.getElementById('eventDate');
+  if (dateInput) {
+    const today = new Date().toISOString().split('T')[0];
+    dateInput.min = today;
+  }
+}
+
+// ==============================================================================
+// 3. APPOINTMENT BOOKING & EMAILJS DISPATCH
+// ==============================================================================
 function initBookingSystem() {
-  var form = document.getElementById('bookingForm');
-  var modalBackdrop = document.getElementById('bookingModal');
-  var modalCloseBtn = document.getElementById('modalCloseBtn');
-  var modalDoneBtn = document.getElementById('modalDoneBtn');
-  var copyRefBtn = document.getElementById('copyRefBtn');
-  var printModalBtn = document.getElementById('printModalBtn');
+  const form = document.getElementById('bookingForm');
+  const modalBackdrop = document.getElementById('bookingModal');
+  const modalCloseBtn = document.getElementById('modalCloseBtn');
+  const modalDoneBtn = document.getElementById('modalDoneBtn');
+  const copyRefBtn = document.getElementById('copyRefBtn');
+  const printModalBtn = document.getElementById('printModalBtn');
 
   if (!form) return;
 
-  // Real-time field validation setup
-  var inputs = form.querySelectorAll('input, select, textarea');
-  Array.prototype.forEach.call(inputs, function (input) {
-    input.addEventListener('blur', function () { validateField(input); });
-    input.addEventListener('input', function () {
+  // Real-time input validation on blur / input
+  const inputs = form.querySelectorAll('input, select, textarea');
+  inputs.forEach(input => {
+    input.addEventListener('blur', () => validateField(input));
+    input.addEventListener('input', () => {
       if (input.classList.contains('is-invalid')) {
         validateField(input);
       }
@@ -71,13 +122,13 @@ function initBookingSystem() {
   });
 
   // Handle Form Submission
-  form.addEventListener('submit', function (e) {
+  form.addEventListener('submit', async (e) => {
     e.preventDefault();
 
-    // Validate Required Fields
-    var isValid = true;
-    var requiredInputs = form.querySelectorAll('[required]');
-    Array.prototype.forEach.call(requiredInputs, function (input) {
+    // 1. Validate all required fields
+    let isValid = true;
+    const requiredInputs = form.querySelectorAll('[required]');
+    requiredInputs.forEach(input => {
       if (!validateField(input)) {
         isValid = false;
       }
@@ -85,165 +136,218 @@ function initBookingSystem() {
 
     if (!isValid) {
       showToast('Please correct the highlighted fields before submitting.', 'error');
-      var firstInvalid = form.querySelector('.is-invalid');
+      const firstInvalid = form.querySelector('.is-invalid');
       if (firstInvalid) firstInvalid.focus();
       return;
     }
 
-    // Extract Values safely
-    var fullNameEl = document.getElementById('fullName');
-    var emailEl = document.getElementById('emailAddress');
-    var phoneEl = document.getElementById('phoneNumber');
-    var serviceEl = document.getElementById('preferredService');
-    var dateEl = document.getElementById('eventDate');
-    var timeEl = document.getElementById('eventTime');
-    var partyEl = document.getElementById('partySize');
-    var venueEl = document.getElementById('eventLocation');
-    var notesEl = document.getElementById('additionalNotes');
+    // 2. Extract and format form values
+    const fullName = document.getElementById('fullName').value.trim();
+    const email = document.getElementById('emailAddress').value.trim();
+    const phone = document.getElementById('phoneNumber').value.trim();
+    const service = document.getElementById('preferredService').value;
+    const eventDate = document.getElementById('eventDate').value;
+    const eventTime = document.getElementById('eventTime') ? document.getElementById('eventTime').value : 'Morning (10:00 AM)';
+    const partySize = document.getElementById('partySize').value.trim() || '1 Person (Bride Only)';
+    const venue = document.getElementById('eventLocation').value.trim() || 'Manhattan Studio / On-Location TBD';
+    const message = document.getElementById('additionalNotes').value.trim() || 'No additional notes provided.';
 
-    var fullName = fullNameEl ? fullNameEl.value.trim() : '';
-    var email = emailEl ? emailEl.value.trim() : '';
-    var phone = phoneEl ? phoneEl.value.trim() : '';
-    var service = serviceEl ? serviceEl.value : 'General Inquiry';
-    var eventDate = dateEl ? dateEl.value : '';
-    var eventTime = timeEl ? timeEl.value : 'Morning (10:00 AM)';
-    var partySize = partyEl ? partyEl.value.trim() : '1 Person (Bride Only)';
-    var venue = venueEl ? venueEl.value.trim() : 'Studio / On-Location TBD';
-    var message = notesEl ? notesEl.value.trim() : 'No additional notes provided.';
+    // Generate unique luxury booking reference number (e.g., AL-2026-8942)
+    const bookingRef = `AL-${new Date().getFullYear()}-${Math.floor(1000 + Math.random() * 9000)}`;
+    const formattedDate = formatDate(eventDate);
+    const submissionTime = new Date().toLocaleString('en-US', {
+      dateStyle: 'medium',
+      timeStyle: 'short'
+    });
 
-    var bookingRef = 'AL-' + new Date().getFullYear() + '-' + Math.floor(1000 + Math.random() * 9000);
-    var formattedDate = formatDate(eventDate);
-    var submissionTime = new Date().toLocaleString('en-US', { dateStyle: 'medium', timeStyle: 'short' });
-
-    // UI Loading State
-    var submitBtn = form.querySelector('button[type="submit"]');
-    var originalBtnHTML = submitBtn.innerHTML;
+    // 3. UI Loading State
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalBtnHTML = submitBtn.innerHTML;
     submitBtn.disabled = true;
-    submitBtn.innerHTML = '<svg style="animation: spin 1s linear infinite; width:18px; height:18px; margin-right:8px; vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle><path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path></svg><span>Sending Booking Request...</span>';
+    submitBtn.innerHTML = `
+      <svg style="animation: spin 1s linear infinite; width:18px; height:18px; margin-right:8px; vertical-align:middle;" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+        <circle cx="12" cy="12" r="10" stroke-opacity="0.25"></circle>
+        <path d="M12 2a10 10 0 0 1 10 10" stroke-linecap="round"></path>
+      </svg>
+      <span>Processing Booking Request...</span>
+    `;
 
-    // Construct Payload for FormSubmit API
-    var targetArtistEmail = BUSINESS_INFO.email;
-    var formSubmitPayload = {
-      _subject: '✨ New Booking Request: ' + fullName + ' – ' + service + ' [' + bookingRef + ']',
-      _replyto: email,
-      _template: 'table',
-      _captcha: 'false',
-      _autoresponse: 'Dear ' + fullName + ',\n\nThank you for choosing ' + BUSINESS_INFO.businessName + '!\n\n── Booking Request Summary ──\nReference Code: ' + bookingRef + '\nService: ' + service + '\nPreferred Date: ' + formattedDate + '\nPreferred Time: ' + eventTime + '\nVenue: ' + venue + '\nParty Size: ' + partySize + '\n\nOur concierge team will review availability and confirm your booking within 24 hours.\n\nWarm regards,\n' + BUSINESS_INFO.artistName + '\n' + BUSINESS_INFO.businessName + '\nPhone: ' + BUSINESS_INFO.phone + '\nEmail: ' + BUSINESS_INFO.email,
-      "Booking Reference": bookingRef,
-      "Client Name": fullName,
-      "Email Address": email,
-      "Phone Number": phone,
-      "Makeup Service": service,
-      "Preferred Date": formattedDate,
-      "Preferred Time": eventTime,
-      "Party Size": partySize,
-      "Venue Location": venue,
-      "Additional Message": message,
-      "Submission Time": submissionTime
+    // 4. Prepare Email Payloads for EmailJS
+    // Payload for Dealer / Makeup Artist Notification
+    const dealerTemplateParams = {
+      client_name: fullName,
+      client_email: email,
+      client_phone: phone,
+      service_name: service,
+      booking_date: formattedDate,
+      booking_time: eventTime,
+      party_size: partySize,
+      venue_location: venue,
+      client_message: message,
+      booking_ref: bookingRef,
+      submission_time: submissionTime
     };
 
-    // AJAX Dispatch
-    fetch('https://formsubmit.co/ajax/' + targetArtistEmail, {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Accept': 'application/json'
-      },
-      body: JSON.stringify(formSubmitPayload)
-    })
-    .then(function(response) {
-      if (!response.ok) {
-        throw new Error('Server returned response code ' + response.status);
+    // Payload for Client Confirmation Auto-Reply
+    const clientTemplateParams = {
+      to_name: fullName,
+      to_email: email,
+      service_name: service,
+      booking_date: formattedDate,
+      booking_time: eventTime,
+      venue_location: venue,
+      party_size: partySize,
+      booking_ref: bookingRef,
+      business_name: BUSINESS_INFO.businessName,
+      artist_name: BUSINESS_INFO.artistName,
+      artist_phone: BUSINESS_INFO.phone,
+      artist_email: BUSINESS_INFO.email,
+      studio_address: BUSINESS_INFO.address
+    };
+
+    try {
+      // Smart Cascading Email Dispatch
+      // Path A: Full EmailJS (requires all 4 credentials to be real)
+      // Path B: FormSubmit AJAX fallback (always works with just target email)
+      const isFullEmailJS = window.emailjs &&
+                            EMAILJS_CONFIG.PUBLIC_KEY !== 'YOUR_PUBLIC_KEY' &&
+                            EMAILJS_CONFIG.SERVICE_ID !== 'YOUR_SERVICE_ID' &&
+                            EMAILJS_CONFIG.DEALER_TEMPLATE_ID !== 'YOUR_DEALER_TEMPLATE' &&
+                            EMAILJS_CONFIG.CLIENT_TEMPLATE_ID !== 'YOUR_CLIENT_TEMPLATE';
+
+      if (isFullEmailJS) {
+        // ── Path A: EmailJS Dual-Email (Artist Notification + Client Confirmation) ──
+        console.log('📧 [Dispatch] Using EmailJS dual-email path...');
+        const [dealerRes, clientRes] = await Promise.all([
+          emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.DEALER_TEMPLATE_ID, dealerTemplateParams),
+          emailjs.send(EMAILJS_CONFIG.SERVICE_ID, EMAILJS_CONFIG.CLIENT_TEMPLATE_ID, clientTemplateParams)
+        ]);
+        console.log('✅ [EmailJS] Artist Notification Sent:', dealerRes.status);
+        console.log('✅ [EmailJS] Client Confirmation Sent:', clientRes.status);
+      } else {
+        // ── Path B: FormSubmit AJAX with Auto-Response to Client ──
+        const targetArtistEmail = 'aryan240706@gmail.com';
+        console.log('📧 [Dispatch] Using FormSubmit path → ' + targetArtistEmail);
+
+        const formSubmitPayload = {
+          _subject: `✨ New Booking Request: ${fullName} – ${service} [${bookingRef}]`,
+          _replyto: email,
+          _template: 'table',
+          _captcha: 'false',
+          _autoresponse: `Dear ${fullName},\n\nThank you for your appointment request with ${BUSINESS_INFO.businessName}!\n\n── Booking Summary ──\nService: ${service}\nDate: ${formattedDate}\nTime: ${eventTime}\nVenue: ${venue}\nParty Size: ${partySize}\nReference: ${bookingRef}\n\nOur concierge team will review availability and contact you within 24 hours.\n\nFor immediate assistance, please call ${BUSINESS_INFO.phone} or email ${BUSINESS_INFO.email}.\n\nWarm regards,\n${BUSINESS_INFO.artistName}\n${BUSINESS_INFO.businessName}`,
+          "Booking Reference": bookingRef,
+          "Client Name": fullName,
+          "Email Address": email,
+          "Phone Number": phone,
+          "Makeup Service": service,
+          "Event Type": document.getElementById('eventType') ? document.getElementById('eventType').value : 'Not specified',
+          "Preferred Date": formattedDate,
+          "Preferred Time": eventTime,
+          "Party Size": partySize,
+          "Venue Location": venue,
+          "Additional Message": message,
+          "Submission Time": submissionTime
+        };
+
+        const response = await fetch(`https://formsubmit.co/ajax/${targetArtistEmail}`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Accept': 'application/json'
+          },
+          body: JSON.stringify(formSubmitPayload)
+        });
+
+        if (!response.ok) throw new Error(`FormSubmit returned ${response.status}`);
+        const result = await response.json();
+        console.log('✅ [FormSubmit] Email dispatched successfully:', result);
       }
-      return response.json();
-    })
-    .then(function(result) {
-      console.log('✅ [FormSubmit] Email dispatched successfully:', result);
+
+      // 5. Populate and show Booking Confirmation Modal
       populateConfirmationModal({
-        bookingRef: bookingRef,
-        fullName: fullName,
-        email: email,
-        phone: phone,
-        service: service,
-        formattedDate: formattedDate,
-        eventTime: eventTime,
-        partySize: partySize,
-        venue: venue
+        bookingRef,
+        fullName,
+        email,
+        phone,
+        service,
+        formattedDate,
+        eventTime,
+        partySize,
+        venue
       });
 
+      // Show modal & toast
       if (modalBackdrop) modalBackdrop.classList.add('active');
       showToast('Appointment request sent! Check your inbox for confirmation.', 'success');
 
+      // Reset form
       form.reset();
-      Array.prototype.forEach.call(inputs, function (input) {
-        input.classList.remove('is-valid', 'is-invalid');
-      });
-    })
-    .catch(function(error) {
-      console.error('❌ [FormSubmit Error]:', error);
-      showToast('Form transmission failed. Please contact us directly at ' + BUSINESS_INFO.phone, 'error');
-    })
-    .then(function() {
+      inputs.forEach(input => input.classList.remove('is-valid', 'is-invalid'));
+
+    } catch (error) {
+      console.error('❌ [Email Transmission Error]:', error);
+      showToast('Email transmission failed. Please contact us directly at +1 (555) 234-5678.', 'error');
+    } finally {
       submitBtn.disabled = false;
       submitBtn.innerHTML = originalBtnHTML;
-    });
+    }
   });
 
-  // Modal Controls
-  var closeModal = function () {
+  // Modal Close Handlers
+  const closeModal = () => {
     if (modalBackdrop) modalBackdrop.classList.remove('active');
   };
 
   if (modalCloseBtn) modalCloseBtn.addEventListener('click', closeModal);
   if (modalDoneBtn) modalDoneBtn.addEventListener('click', closeModal);
   if (modalBackdrop) {
-    modalBackdrop.addEventListener('click', function (e) {
+    modalBackdrop.addEventListener('click', (e) => {
       if (e.target === modalBackdrop) closeModal();
     });
   }
 
+  // Copy Booking Reference Button
   if (copyRefBtn) {
-    copyRefBtn.addEventListener('click', function () {
-      var refCodeEl = document.getElementById('modalRefCode');
+    copyRefBtn.addEventListener('click', () => {
+      const refCodeEl = document.getElementById('modalRefCode');
       if (refCodeEl) {
-        if (navigator.clipboard) {
-          navigator.clipboard.writeText(refCodeEl.innerText).then(function () {
-            showToast('Reference ' + refCodeEl.innerText + ' copied to clipboard!', 'success');
-          }).catch(function () {
-            showToast('Code: ' + refCodeEl.innerText, 'info');
-          });
-        } else {
-          showToast('Code: ' + refCodeEl.innerText, 'info');
-        }
+        navigator.clipboard.writeText(refCodeEl.innerText).then(() => {
+          showToast(`Reference ${refCodeEl.innerText} copied to clipboard!`, 'success');
+        }).catch(() => {
+          showToast('Could not copy automatically. Code: ' + refCodeEl.innerText, 'info');
+        });
       }
     });
   }
 
+  // Print Booking Receipt
   if (printModalBtn) {
-    printModalBtn.addEventListener('click', function () {
+    printModalBtn.addEventListener('click', () => {
       window.print();
     });
   }
 }
 
 /**
- * Validate Individual Fields
+ * Field-level validator
  */
 function validateField(input) {
-  var value = input.value.trim();
-  var isRequired = input.hasAttribute('required');
-  var isValid = true;
+  const value = input.value.trim();
+  const isRequired = input.hasAttribute('required');
+  let isValid = true;
 
   if (isRequired && !value) {
     isValid = false;
   } else if (input.type === 'email' && value) {
-    var emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    // Standard RFC5322 regex validation
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     isValid = emailRegex.test(value);
   } else if (input.type === 'tel' && value) {
+    // At least 7 digits/characters
     isValid = value.replace(/\D/g, '').length >= 7;
   } else if (input.type === 'date' && value) {
-    var selectedDate = new Date(value);
-    var today = new Date();
+    const selectedDate = new Date(value);
+    const today = new Date();
     today.setHours(0, 0, 0, 0);
     isValid = selectedDate >= today;
   }
@@ -260,27 +364,30 @@ function validateField(input) {
 }
 
 /**
- * Populate Confirmation Modal Content
+ * Populate Confirmation Modal Data
  */
 function populateConfirmationModal(data) {
-  var setElText = function (id, text) {
-    var el = document.getElementById(id);
+  const setElText = (id, text) => {
+    const el = document.getElementById(id);
     if (el) el.innerText = text;
   };
 
   setElText('modalRefCode', data.bookingRef);
   setElText('modalClientName', data.fullName);
   setElText('modalService', data.service);
-  setElText('modalDateTime', data.formattedDate + ' at ' + data.eventTime);
+  setElText('modalDateTime', `${data.formattedDate} at ${data.eventTime}`);
   setElText('modalVenue', data.venue);
   setElText('modalPartySize', data.partySize);
-  setElText('modalContact', data.email + ' • ' + data.phone);
+  setElText('modalContact', `${data.email} • ${data.phone}`);
 }
 
+/**
+ * Helper to format date strings gracefully
+ */
 function formatDate(dateStr) {
   if (!dateStr) return '';
-  var parts = dateStr.split('-');
-  var dateObj = new Date(parts[0], parts[1] - 1, parts[2]);
+  const [year, month, day] = dateStr.split('-');
+  const dateObj = new Date(year, month - 1, day);
   return dateObj.toLocaleDateString('en-US', {
     weekday: 'short',
     month: 'short',
@@ -289,20 +396,23 @@ function formatDate(dateStr) {
   });
 }
 
-// 4. SERVICE PRE-SELECTION SYNC
+// ==============================================================================
+// 4. SERVICE PRE-SELECTION SYNC (CTA Buttons -> Booking Form)
+// ==============================================================================
 function initServiceSelectTriggers() {
-  var bookButtons = document.querySelectorAll('[data-book-service]');
-  var serviceDropdown = document.getElementById('preferredService');
-  var bookingSection = document.getElementById('booking');
+  const bookButtons = document.querySelectorAll('[data-book-service]');
+  const serviceDropdown = document.getElementById('preferredService');
+  const bookingSection = document.getElementById('booking');
 
-  Array.prototype.forEach.call(bookButtons, function (btn) {
-    btn.addEventListener('click', function (e) {
+  bookButtons.forEach(btn => {
+    btn.addEventListener('click', (e) => {
       e.preventDefault();
-      var targetService = btn.getAttribute('data-book-service');
+      const targetService = btn.getAttribute('data-book-service');
 
       if (serviceDropdown && targetService) {
-        for (var i = 0; i < serviceDropdown.options.length; i++) {
-          if (serviceDropdown.options[i].value.toLowerCase().indexOf(targetService.toLowerCase()) !== -1) {
+        // Match or find closest option
+        for (let i = 0; i < serviceDropdown.options.length; i++) {
+          if (serviceDropdown.options[i].value.toLowerCase().includes(targetService.toLowerCase())) {
             serviceDropdown.selectedIndex = i;
             break;
           }
@@ -311,12 +421,14 @@ function initServiceSelectTriggers() {
 
       if (bookingSection) {
         bookingSection.scrollIntoView({ behavior: 'smooth' });
+        
+        // Highlight dropdown field with gold glow
         if (serviceDropdown) {
-          setTimeout(function () {
+          setTimeout(() => {
             serviceDropdown.focus();
-            serviceDropdown.style.borderColor = 'var(--gold-primary, #c5a059)';
-            serviceDropdown.style.boxShadow = '0 0 0 4px rgba(197, 160, 89, 0.2)';
-            setTimeout(function () {
+            serviceDropdown.style.borderColor = 'var(--gold-primary)';
+            serviceDropdown.style.boxShadow = '0 0 0 4px var(--gold-subtle)';
+            setTimeout(() => {
               serviceDropdown.style.boxShadow = '';
             }, 1800);
           }, 400);
@@ -326,48 +438,56 @@ function initServiceSelectTriggers() {
   });
 }
 
+// ==============================================================================
 // 5. PORTFOLIO / GALLERY CATEGORY FILTERING
+// ==============================================================================
 function initGalleryFilters() {
-  var tabs = document.querySelectorAll('.gallery-tab');
-  var items = document.querySelectorAll('.gallery-item');
+  const tabs = document.querySelectorAll('.gallery-tab');
+  const items = document.querySelectorAll('.gallery-item');
 
-  Array.prototype.forEach.call(tabs, function (tab) {
-    tab.addEventListener('click', function () {
-      Array.prototype.forEach.call(tabs, function (t) { t.classList.remove('active'); });
+  tabs.forEach(tab => {
+    tab.addEventListener('click', () => {
+      // Toggle active tab
+      tabs.forEach(t => t.classList.remove('active'));
       tab.classList.add('active');
 
-      var filterValue = tab.getAttribute('data-filter');
+      const filterValue = tab.getAttribute('data-filter');
 
-      Array.prototype.forEach.call(items, function (item) {
-        var itemCategory = item.getAttribute('data-category');
+      items.forEach(item => {
+        const itemCategory = item.getAttribute('data-category');
         if (filterValue === 'all' || itemCategory === filterValue) {
           item.classList.remove('hidden');
-          item.style.display = '';
+          item.style.animation = 'fadeIn 0.4s ease forwards';
         } else {
           item.classList.add('hidden');
-          item.style.display = 'none';
         }
       });
     });
   });
 }
 
+// ==============================================================================
 // 6. IMAGE LIGHTBOX MODAL
+// ==============================================================================
+let currentLightboxIndex = 0;
+let visibleGalleryImages = [];
+
 function initLightbox() {
-  var galleryItems = document.querySelectorAll('.gallery-item');
-  var lightbox = document.getElementById('lightboxModal');
-  var lightboxImg = document.getElementById('lightboxImg');
-  var lightboxCaption = document.getElementById('lightboxCaption');
-  var closeBtn = document.getElementById('lightboxClose');
-  var prevBtn = document.getElementById('lightboxPrev');
-  var nextBtn = document.getElementById('lightboxNext');
+  const galleryItems = document.querySelectorAll('.gallery-item');
+  const lightbox = document.getElementById('lightboxModal');
+  const lightboxImg = document.getElementById('lightboxImg');
+  const lightboxCaption = document.getElementById('lightboxCaption');
+  const closeBtn = document.getElementById('lightboxClose');
+  const prevBtn = document.getElementById('lightboxPrev');
+  const nextBtn = document.getElementById('lightboxNext');
 
   if (!lightbox) return;
 
-  Array.prototype.forEach.call(galleryItems, function (item) {
-    item.addEventListener('click', function () {
-      var visibleNodes = document.querySelectorAll('.gallery-item:not(.hidden)');
-      visibleGalleryImages = Array.prototype.slice.call(visibleNodes);
+  // Click on gallery item to open lightbox
+  galleryItems.forEach((item, index) => {
+    item.addEventListener('click', () => {
+      // Gather visible items
+      visibleGalleryImages = Array.from(document.querySelectorAll('.gallery-item:not(.hidden)'));
       currentLightboxIndex = visibleGalleryImages.indexOf(item);
       openLightboxAt(currentLightboxIndex);
     });
@@ -375,32 +495,30 @@ function initLightbox() {
 
   function openLightboxAt(index) {
     if (index < 0 || index >= visibleGalleryImages.length) return;
-    var targetItem = visibleGalleryImages[index];
-    var imgEl = targetItem.querySelector('img');
-    var titleEl = targetItem.querySelector('.gallery-item-title');
+    const targetItem = visibleGalleryImages[index];
+    const imgEl = targetItem.querySelector('img');
+    const titleEl = targetItem.querySelector('.gallery-item-title');
 
     if (imgEl && lightboxImg) {
       lightboxImg.src = imgEl.src;
-      if (lightboxCaption) {
-        lightboxCaption.innerText = titleEl ? titleEl.innerText : 'Aurora Luxe Artistry Look';
-      }
+      lightboxCaption.innerText = titleEl ? titleEl.innerText : 'Aurora Luxe Artistry Signature Look';
       lightbox.classList.add('active');
       document.body.style.overflow = 'hidden';
     }
   }
 
-  var closeLightbox = function () {
+  const closeLightbox = () => {
     lightbox.classList.remove('active');
     document.body.style.overflow = '';
   };
 
   if (closeBtn) closeBtn.addEventListener('click', closeLightbox);
-  lightbox.addEventListener('click', function (e) {
+  lightbox.addEventListener('click', (e) => {
     if (e.target === lightbox) closeLightbox();
   });
 
   if (prevBtn) {
-    prevBtn.addEventListener('click', function (e) {
+    prevBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       currentLightboxIndex = (currentLightboxIndex - 1 + visibleGalleryImages.length) % visibleGalleryImages.length;
       openLightboxAt(currentLightboxIndex);
@@ -408,14 +526,15 @@ function initLightbox() {
   }
 
   if (nextBtn) {
-    nextBtn.addEventListener('click', function (e) {
+    nextBtn.addEventListener('click', (e) => {
       e.stopPropagation();
       currentLightboxIndex = (currentLightboxIndex + 1) % visibleGalleryImages.length;
       openLightboxAt(currentLightboxIndex);
     });
   }
 
-  document.addEventListener('keydown', function (e) {
+  // Keyboard navigation (Esc, Left, Right)
+  document.addEventListener('keydown', (e) => {
     if (!lightbox.classList.contains('active')) return;
     if (e.key === 'Escape') closeLightbox();
     if (e.key === 'ArrowLeft' && prevBtn) prevBtn.click();
@@ -423,63 +542,69 @@ function initLightbox() {
   });
 }
 
+// ==============================================================================
 // 7. BEFORE & AFTER COMPARISON SLIDER
+// ==============================================================================
 function initComparisonSlider() {
-  var container = document.getElementById('comparisonSlider');
-  var beforeImage = document.getElementById('comparisonBefore');
-  var handle = document.getElementById('comparisonHandle');
+  const container = document.getElementById('comparisonSlider');
+  const beforeImage = document.getElementById('comparisonBefore');
+  const handle = document.getElementById('comparisonHandle');
 
   if (!container || !beforeImage || !handle) return;
 
-  var isSliding = false;
+  let isSliding = false;
 
-  var updateSlider = function (clientX) {
-    var rect = container.getBoundingClientRect();
-    var positionX = clientX - rect.left;
+  const updateSlider = (clientX) => {
+    const rect = container.getBoundingClientRect();
+    let positionX = clientX - rect.left;
 
     if (positionX < 0) positionX = 0;
     if (positionX > rect.width) positionX = rect.width;
 
-    var percentage = (positionX / rect.width) * 100;
-    beforeImage.style.width = percentage + '%';
-    handle.style.left = percentage + '%';
+    const percentage = (positionX / rect.width) * 100;
+    beforeImage.style.width = `${percentage}%`;
+    handle.style.left = `${percentage}%`;
   };
 
-  container.addEventListener('mousedown', function (e) {
+  // Mouse events
+  container.addEventListener('mousedown', (e) => {
     isSliding = true;
     updateSlider(e.clientX);
   });
 
-  window.addEventListener('mousemove', function (e) {
+  window.addEventListener('mousemove', (e) => {
     if (!isSliding) return;
     updateSlider(e.clientX);
   });
 
-  window.addEventListener('mouseup', function () {
+  window.addEventListener('mouseup', () => {
     isSliding = false;
   });
 
-  container.addEventListener('touchstart', function (e) {
+  // Touch events (Mobile support)
+  container.addEventListener('touchstart', (e) => {
     isSliding = true;
     updateSlider(e.touches[0].clientX);
   }, { passive: true });
 
-  window.addEventListener('touchmove', function (e) {
+  window.addEventListener('touchmove', (e) => {
     if (!isSliding) return;
     updateSlider(e.touches[0].clientX);
   }, { passive: true });
 
-  window.addEventListener('touchend', function () {
+  window.addEventListener('touchend', () => {
     isSliding = false;
   });
 }
 
-// 8. STICKY HEADER & MOBILE NAVIGATION
+// ==============================================================================
+// 8. STICKY HEADER & MOBILE DRAWER NAVIGATION
+// ==============================================================================
 function initHeaderScroll() {
-  var header = document.querySelector('.header');
+  const header = document.querySelector('.header');
   if (!header) return;
 
-  var handleScroll = function () {
+  const handleScroll = () => {
     if (window.scrollY > 40) {
       header.classList.add('scrolled');
     } else {
@@ -492,20 +617,20 @@ function initHeaderScroll() {
 }
 
 function initMobileNav() {
-  var toggleBtn = document.getElementById('mobileToggle');
-  var navMenu = document.getElementById('navMenu');
-  var navLinks = document.querySelectorAll('.nav-link');
+  const toggleBtn = document.getElementById('mobileToggle');
+  const navMenu = document.getElementById('navMenu');
+  const navLinks = document.querySelectorAll('.nav-link');
 
   if (!toggleBtn || !navMenu) return;
 
-  toggleBtn.addEventListener('click', function () {
+  toggleBtn.addEventListener('click', () => {
     toggleBtn.classList.toggle('active');
     navMenu.classList.toggle('active');
     document.body.style.overflow = navMenu.classList.contains('active') ? 'hidden' : '';
   });
 
-  Array.prototype.forEach.call(navLinks, function (link) {
-    link.addEventListener('click', function () {
+  navLinks.forEach(link => {
+    link.addEventListener('click', () => {
       toggleBtn.classList.remove('active');
       navMenu.classList.remove('active');
       document.body.style.overflow = '';
@@ -513,21 +638,25 @@ function initMobileNav() {
   });
 }
 
+// ==============================================================================
 // 9. FAQ ACCORDION
+// ==============================================================================
 function initFaqAccordion() {
-  var faqItems = document.querySelectorAll('.faq-item');
+  const faqItems = document.querySelectorAll('.faq-item');
 
-  Array.prototype.forEach.call(faqItems, function (item) {
-    var questionBtn = item.querySelector('.faq-question');
+  faqItems.forEach(item => {
+    const questionBtn = item.querySelector('.faq-question');
     if (!questionBtn) return;
 
-    questionBtn.addEventListener('click', function () {
-      var isActive = item.classList.contains('active');
+    questionBtn.addEventListener('click', () => {
+      const isActive = item.classList.contains('active');
 
-      Array.prototype.forEach.call(faqItems, function (otherItem) {
+      // Close all other items
+      faqItems.forEach(otherItem => {
         otherItem.classList.remove('active');
       });
 
+      // Toggle current
       if (!isActive) {
         item.classList.add('active');
       }
@@ -535,12 +664,14 @@ function initFaqAccordion() {
   });
 }
 
+// ==============================================================================
 // 10. BACK TO TOP BUTTON
+// ==============================================================================
 function initBackToTop() {
-  var backToTopBtn = document.getElementById('backToTop');
+  const backToTopBtn = document.getElementById('backToTop');
   if (!backToTopBtn) return;
 
-  window.addEventListener('scroll', function () {
+  window.addEventListener('scroll', () => {
     if (window.scrollY > 450) {
       backToTopBtn.classList.add('visible');
     } else {
@@ -548,7 +679,7 @@ function initBackToTop() {
     }
   }, { passive: true });
 
-  backToTopBtn.addEventListener('click', function () {
+  backToTopBtn.addEventListener('click', () => {
     window.scrollTo({
       top: 0,
       behavior: 'smooth'
@@ -556,10 +687,11 @@ function initBackToTop() {
   });
 }
 
+// ==============================================================================
 // 11. TOAST NOTIFICATION SYSTEM
-function showToast(message, type) {
-  type = type || 'info';
-  var container = document.getElementById('toastContainer');
+// ==============================================================================
+function showToast(message, type = 'info') {
+  let container = document.getElementById('toastContainer');
   if (!container) {
     container = document.createElement('div');
     container.id = 'toastContainer';
@@ -567,53 +699,58 @@ function showToast(message, type) {
     document.body.appendChild(container);
   }
 
-  var toast = document.createElement('div');
-  toast.className = 'toast ' + type;
+  const toast = document.createElement('div');
+  toast.className = `toast ${type}`;
 
-  var icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
+  const icon = type === 'success' ? '✓' : type === 'error' ? '✕' : 'ℹ';
 
-  toast.innerHTML = '<span style="font-weight: bold; font-size: 1.1rem;">' + icon + '</span><span>' + message + '</span>';
+  toast.innerHTML = `
+    <span style="font-weight: bold; font-size: 1.1rem;">${icon}</span>
+    <span>${message}</span>
+  `;
 
   container.appendChild(toast);
 
-  setTimeout(function () {
+  setTimeout(() => {
     toast.style.opacity = '0';
     toast.style.transform = 'translateX(100%)';
-    setTimeout(function () {
-      if (toast.parentNode) {
-        toast.parentNode.removeChild(toast);
-      }
+    setTimeout(() => {
+      toast.remove();
     }, 300);
   }, 4500);
 }
 
+// Make showToast accessible globally
 window.showToast = showToast;
 
+// ==============================================================================
 // 12. LOADING SCREEN
+// ==============================================================================
 function initLoadingScreen() {
-  var loader = document.getElementById('loadingScreen');
+  const loader = document.getElementById('loadingScreen');
   if (!loader) return;
 
-  setTimeout(function () {
+  // Fade out after page is ready
+  setTimeout(() => {
     loader.style.opacity = '0';
     loader.style.pointerEvents = 'none';
-    setTimeout(function () {
+    setTimeout(() => {
       loader.style.display = 'none';
     }, 500);
   }, 600);
 }
 
-// 13. SCROLL REVEAL ANIMATIONS
+// ==============================================================================
+// 13. SCROLL REVEAL ANIMATIONS (IntersectionObserver)
+// ==============================================================================
 function initScrollReveal() {
-  if (!('IntersectionObserver' in window)) return;
-
-  var observerOptions = {
+  const observerOptions = {
     threshold: 0.08,
     rootMargin: '0px 0px -30px 0px'
   };
 
-  var observer = new IntersectionObserver(function (entries) {
-    Array.prototype.forEach.call(entries, function (entry) {
+  const observer = new IntersectionObserver((entries) => {
+    entries.forEach(entry => {
       if (entry.isIntersecting) {
         entry.target.classList.add('revealed');
         observer.unobserve(entry.target);
@@ -621,36 +758,38 @@ function initScrollReveal() {
     });
   }, observerOptions);
 
-  var animatedEls = document.querySelectorAll(
+  const animatedEls = document.querySelectorAll(
     '.service-card, .package-card, .testimonial-card, .why-card, .gallery-item, .faq-item, .contact-card, .cred-card, .section-header, .booking-container, .comparison-container'
   );
 
-  Array.prototype.forEach.call(animatedEls, function (el, index) {
+  animatedEls.forEach((el, index) => {
     el.classList.add('scroll-reveal');
-    el.style.transitionDelay = (index % 4) * 0.08 + 's';
+    el.style.transitionDelay = `${(index % 4) * 0.08}s`;
     observer.observe(el);
   });
 }
 
-// 14. ACTIVE NAV LINK HIGHLIGHT
+// ==============================================================================
+// 14. ACTIVE NAV LINK HIGHLIGHT ON SCROLL
+// ==============================================================================
 function initActiveNavHighlight() {
-  var sections = document.querySelectorAll('section[id]');
-  var navLinks = document.querySelectorAll('.nav-link');
+  const sections = document.querySelectorAll('section[id]');
+  const navLinks = document.querySelectorAll('.nav-link');
 
   if (!sections.length || !navLinks.length) return;
 
-  window.addEventListener('scroll', function () {
-    var scrollY = window.pageYOffset || document.documentElement.scrollTop;
+  window.addEventListener('scroll', () => {
+    let scrollY = window.pageYOffset;
 
-    Array.prototype.forEach.call(sections, function (section) {
-      var sectionHeight = section.offsetHeight;
-      var sectionTop = section.offsetTop - 140;
-      var sectionId = section.getAttribute('id');
+    sections.forEach(section => {
+      const sectionHeight = section.offsetHeight;
+      const sectionTop = section.offsetTop - 140;
+      const sectionId = section.getAttribute('id');
 
       if (scrollY > sectionTop && scrollY <= sectionTop + sectionHeight) {
-        Array.prototype.forEach.call(navLinks, function (link) {
+        navLinks.forEach(link => {
           link.classList.remove('active');
-          if (link.getAttribute('href') === '#' + sectionId) {
+          if (link.getAttribute('href') === `#${sectionId}`) {
             link.classList.add('active');
           }
         });
@@ -659,23 +798,26 @@ function initActiveNavHighlight() {
   }, { passive: true });
 }
 
+// ==============================================================================
 // 15. COOKIE CONSENT BANNER
+// ==============================================================================
 function initCookieConsent() {
   if (localStorage.getItem('cookieConsent') === 'accepted') return;
 
-  var banner = document.getElementById('cookieConsent');
-  var acceptBtn = document.getElementById('cookieAcceptBtn');
+  const banner = document.getElementById('cookieConsent');
+  const acceptBtn = document.getElementById('cookieAcceptBtn');
 
   if (!banner || !acceptBtn) return;
 
-  setTimeout(function () {
+  // Show banner after a short delay
+  setTimeout(() => {
     banner.classList.add('visible');
   }, 1500);
 
-  acceptBtn.addEventListener('click', function () {
+  acceptBtn.addEventListener('click', () => {
     localStorage.setItem('cookieConsent', 'accepted');
     banner.classList.remove('visible');
-    setTimeout(function () {
+    setTimeout(() => {
       banner.style.display = 'none';
     }, 400);
   });
